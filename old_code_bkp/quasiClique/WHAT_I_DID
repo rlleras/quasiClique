@@ -1,0 +1,452 @@
+Oct.8 2008
+
+1. Got the total IGR size per species (m30, s0 or s50) from bliss.yale's server, and imported to DB.
+
+2. Calculate the total # of ncRNA nts (regardless of whether it's fully in IGR) in each phylum
+   and the ratio of (total ncRNA nts)/(total IGR nts) per phylum. This is of course just as 
+   rough esimate because the ncRNAs could be partially in IGR.
+
+   ==> results in ./output/RefSeq25_IGRs_m30s0.ncRNA_ratios.txt
+
+Oct.9 2008
+
+3. Calculate pairwise PID for each family alignment in ~/Larry_Riboswitch/Latest_ribo_20081002_plus20071102_curated/.
+   The PID is stored as edge weights in a network XGraph that's pickled under the same directory.
+
+4. For each family, take every sequence, shuffle it once (use uShuffle) --> call this the randDB.
+   Do a randDB self-blast using WU-BLAST. 
+ 
+Oct. 10 2008
+
+    Plotted the distribution of scores using gnuplot
+    ==> results at ./output/output_blast_etc/random_selected_ncRNA_dishuffled.M5N4Q10R6W7E10.WUblast_score_dist.png
+
+5. Randomly choose a set of 15 sequences from each family s.t. the pairwise PID is 40%-60%
+    ==> results in ./output/input_fnas/Latest_ribo_20081002_plus20071102_curated.random_15_from_each_family.fna
+
+Oct. 14-16 2008
+
+6. Dumped from DB 'ncRNA' all ncRNA sequences from Actinobacteria (~800 seqs),
+    ==> stored in ./output/input_fnas/ALLActinobacteria_20081002_plus20071102_curated.fna (a)
+  
+   Used S. Eddy's squid "shuffle" program with optional params [-d -n 10] to shuffle the actino seq,
+   and renamed the IDs properly.
+    ==> stored in ./output/input_fnas/ALLActinobacteria_20081002_plus20071102_curated_modishuffled.fna (b)
+
+   BLASTed (a) against a DB of (a)+(b)
+
+Oct. 21 2008
+
+7. Ran two tests on Actino. The first test is for each family, query = family, DB = query + query-dishuffled-10-times.
+   The second test is for each family, query = family, DB = query + S.
+   Where S is a chunk from the file generated from ALL families dishuffled 10 times, but only taking a 
+   proportionate part of it according to the query family size.
+   I used a proportion rate of 61. 
+   So for the largest family TPP (166 seq), the DB is all Actino TPP + 166*61 dishuffled seqs.
+   To make sure the dishuffled seqs are uniformly taken from different families, I first shuffled them using
+   Eddy's squid stuff (run rename_shuffled_seqs.squid_shuffle_seq)
+    then re-distributed them (rename_shuffled_seqs.uniform_distribute_fasta)
+
+   ==> test1 command (using method test1):
+	python run_unshuffled_scripts.py output/input_fnas/ALLActinobacteria_20081002_plus20071102_curated_withDup/ output/output_blast_etc/ALLActinobacteria_20081002_plus20071102_curated_withDup/
+   ==> test2 command (using method test2):
+	python -O -3 run_unshuffled_scripts.py output/input_fnas/ALLActinobacteria_20081002_plus20071102_curated_withDup/ output/input_fnas/ALLActinobacteria_20081002_plus20071102_curated_withDup_modishuffled.uniform.fna output/output_blast_etc/ALLActinobacteria_20081002_plus20071102_curated_withDup/ 61	
+
+8. Got scatterplots of (query+target)/2 length mapped to maximal observed score.
+ 
+   ==> used command:
+     python evaluate_blast_result.py output/output_blast_etc/ALLActinobacteria_20081002_plus20071102_curated_withDup/ ALLActinobacteria_20081002_plus20071102_curated_withDup_*plus_prop*.WUblast > a
+
+Oct. 27
+
+9. Corrected some nasty errors in the run_unshuffled_scipts.py methods. Now the run_unshuffled_blast.py doesn't do the old fancy -dbrecmin thing anymore because I think at some point the DB files won't be organized enough to use dbrecmin. So now there will be self-hits and hits of (a,b) AND (b,a). self-hits are currently ignored by banning selfloops on the XGraph. multiple hits of the same pair is handled by only taking the maximum observed score between a certain pair of seq IDs.
+
+   Now I can draw a nice comparison plot of multiple ROC curves, see draw_comparison_plot.py
+   In additional to plotting a ROC curve, it also labels a few key points where TDR (sensitivity) is maximum given that FDR (1-specificity) is lower than some threshold. The label shows what the score cutoff it at that (TDR,FDR) coordinate. I labeled this for FDR < 0.05, 0.10, 0.15, 0.25, and 0.50.
+
+   Also finally got a correct version of picking out non-ncRNA-containing IGRs. Ran it at bliss. 
+   ==> results stored at ./output/input_fnas/picked_random_nonribo.fna
+
+   I'm running each family VS (family+random) now. It will take a very long time.
+
+
+Nov. 11
+
+10. Ran different parameter sets on Actino and Firmicutes, with or without padding.
+    In the case of padding, the input is always the REAL ncRNAs with no boundaries, and
+    the DB is random non-ncRNA-containing IGRs + real ncRNAs embedded on both sides with
+    length N = length of the original ncRNA. So each embedded sequences is 3X length.
+    Whenever possible, the embedding is the actual flanking regions extracted from NCBI,
+    if the Efetching failed, then we just use uShuffle to obtain modi-shuffled fake seqs.
+
+
+11. Got PHYLIP to work on each ncRNA family in each phylum using commands like:
+
+    ==> python rename_sto_for_PHYLIP.py /homes/gws/lachesis/Larry_Riboswitch/Latest_ribo_20081002_plus20071102_curated/ /homes/gws/lachesis/xmen/afterQual_pipeline/PythonScripts/BLASTparamTest/ncRNA_to_IGR_ratio/output/input_stos/ALLActinobacteria_20081002_plus20071102_curated/ Actinobacteria    
+
+
+Nov. 17
+
+12.
+
+    ==> blastn ALLActinobacteria_20081002_plus20071102_curated_withDup_ALL_padseqlen_plus_random_nonribo ALLActinobacteria_20081002_plus20071102_curated_withDup_ALL_padseqlen.fna -W 3 -E 2 -M 8 -N -7 -Q 16 -R 2 -noseqs -cpus 4 -mformat 2 -o /homes/gws/lachesis/xmen/afterQual_pipeline/PythonScripts/BLASTparamTest/ncRNA_to_IGR_ratio/output/output_blast_etc/ALLActinobacteria_20081002_plus20071102_curated_withDup_ALL_padseqlen_plus_random_nonribo.M8N7Q16R2W3E2.WUblast
+
+    ==> blastn ALLActinobacteria_20081002_plus20071102_curated_withDup_ALL_padseqlen_plus_random_nonribo ALLActinobacteria_20081002_plus20071102_curated_withDup_ALL_padseqlen.fna -W 3 -E 2 -M 5 -N -4 -Q 8 -R 6 -noseqs -cpus 4 -mformat 2 -o /homes/gws/lachesis/xmen/afterQual_pipeline/PythonScripts/BLASTparamTest/ncRNA_to_IGR_ratio/output/output_blast_etc/ALLActinobacteria_20081002_plus20071102_curated_withDup_ALL_padseqlen_plus_random_nonribo.M5N4Q8R6W3E2.WUblast
+
+
+Jan. 20 (Orz)
+
+13. 
+
+The WUblast from Actino above with +8/-7, 16/2 was processed, and used approx clique with gamma=0.8, maxitr=20, to get.
+The output is listed in /homes/gws/lachesis/xmen/afterQual_pipeline/PythonScripts/BLASTparamTest/ncRNA_to_IGR_ratio/output/output_blast_etc/ALLActinobacteria_20081002_lus20071102_curated_withDup_ALL_padseqlen_plus_random_nonribo.M8N7Q16R2W3E2.WUblast_cut30.step1ed.approx_cliques.
+
+
+14.
+   ==> blastn ALLFirm_padseqlen_plus_random ALLFirm_padseqlen_plus_random.fna -W 3 -E 2 -M 8 -N -7 -Q 16 -R 2 -noseqs -cpus 4 -mformat 2 -o ALLFirm_padseqlen_plus_random.M8N7Q16R2W3E2.WUblast
+
+
+Feb. 10
+
+15. This is awesome. I WU-BLASTed all Actino + some random IGR against itself using the architecture grid with parameters M8N7Q16R2W3E3. The files (splitted) are then copyed to
+
+   ==> /homes/gws/lachesis/xmen/afterQual_pipeline/PythonScripts/BLASTparamTest/ncRNA_to_IGR_ratio/output/output_blast_etc/ALLActino_RefSeq25_m30s0/split1/
+
+    Since the total of all these split files amount to ~5.6GB, it's not possible to parse them all together at once, the memory just explodes and networkx Graph can't seem to handle more than 3 million edges (some memory error shows up).
+
+    So instead what I did is, given the list of all split files, keep reading unprocessed files, process them by calling cluster_steps.step1_process_blast with a score cutoff of 35, and accumulate the graph until there's more than 2 million edges (this generally uses up 50~60% memory), then import the graph in the MySQL database ALLActino. Note that, before I processed any blast split files, I took the IGR heads from the original fasta file and imported it into ALLActino.nodes_to_index, so that whenever I process split files, I have to read this table into the NodesToIndex structure first.
+
+    Naturally, there would be redundancy. So after split files are imported (doesn't have to wait till ALL of them imported, you can start doing this whenever there's more than 1 graph imported to db), call cluster_steps.update_db_node_sets, which will merge redundant nodes and edges.
+
+    The update_db_node_sets procedure on ALLActino took me about a day.
+
+
+16. ok....so now ALLActino has about ~110000 entries in sets_for_nodes. I further deleted all entries with degree <= 3 which is a pretty safe move. Now there's about ~94000 entries with ~15 million edges. I ran a component test using unionfind structure (cluster_steps2.get_components), and realized > 90000 entries form one giant component...so apparently I cannot read the whole component into one graph. 15 million edges will definitely kill me.
+
+    So, given limited time, I created a table called "seeds". At first, "seeds" contains all entries as in sets_for_nodes. Then I ran cluster_steps2.db_remove_seeds_not_a_hit, which will remove all entries from seeds that do not overlap a known ncRNA - but with a given probability (and I set it to 0.01), it doesn't delete it.
+
+    Now I call cluster_steps2.run_clique_finding. What it does is it fetches RANDOMLY 1 entry from seeds to use as a seed node. The graph is grown by first adding all adjcent edges to the seed node, then all edges that are adjacent to either the seed node or the seed node's immediate neighbor. This might sound like cheating, but it's not, because when I call the fuzzy-clique-finding method, it picks the starting node randomly from RCLs. I ran fuzzy-clique (pClique.py) with max_iteration=10, gamma=0.8. Everytime a fuzzy-clique is generated, I remove its members from seeds (although for some reason I kinda doubt if that sql command is really execute...hmm, doesn't matter, no harm done if not). 
+
+    The results, which is a list of lists containing sets_for_nodes entry IDs (field "i"), is currently stored with pattern seeded_with_hits<index>.pickle.
+
+    Of course with the above approach, the same node can show up in different cliques (which must have been coming from different seed graphs becuz I delete the clique members from the graphs once it's found). I should deal with this later, but you can get a rough picture with my current evaluation, which is done by calling:
+
+    ==> python tmp8.py
+
+    Things look good so far from the eval ran above. General precision runs > 80%!! And even though at this moment I haven't finished all entries in seeds table yet, recall also looks good.
+
+    The next things I want to do are:
+
+    .... run CMFinder, can I use myAnchor to group similar motifs? is that useful or just crap?
+    .... figure out how to rank cliques? There are > 1000 cliques evaled that are NOT ncRNA cliques, how do I know they're just garbage? Maybe this is now time to make use of the "score" field in ALLActino.parsed that I ignored (since it's just the max pairing score between SOME segments within those two nodes, the meaning of the score is lost, but maybe it's useful now?). GC content? motif scoring?
+    .... do it on firmicutes!
+
+
+17. Larry suggested removing entries from sets_for_nodes that are unusually long (should check them!!).
+    I checked, and removed all the entries with length > 2000 (none of them contain ncRNA hits) from "parsed" ---
+    note that I didn't remove them from sets_for_nodes, but it doesn't matter since they won't be included
+    in any graphs :)
+ 
+    There are a total of 163 entries with length > 200. Before removing them from parsed,parsed contains ~15 million edges. After deletion, there's ~14 million.
+	
+    Running c2.degs_from_db, I realized that the sets_for_nodes entry <894> has the most edges...15608! I went to check the original WU-BLAST split files....it does have a whole lot of hits, and many have score > 50, so it's not that low....so, if I run seed_graph using 894, I get 85612 nodes and ~8 million edges (and this is after I've deleted previous clique nodes and long-length nodes...). Clearly something has to be done.
+
+
+Feb. 15
+
+18. I've re-run the DB insertion & redundancy removal of ALLActino results. The MySQL dump is stored at ./tmp.
+    Note that this dump includes everything: the two full-length genome nodes (i=75,163) that I deleted and low-degree nodes.
+    To iteratively remove all low-degree nodes, do:
+	degs_of_node = c2.calc_degs_from_db()
+	while c2.remove_low_degs_from_db(degs_of_node, 3):
+		pass
+
+    currently I remove all nodes of degree <= 3. This is pretty lenient.
+    Note that I am currently NOT deleting any long nodes. I'm keeping them just to see what happens.
+
+    ....I just learned that in vim subsitute, newline is \n when searching, and \r when replacing!! Orz
+
+
+19. I finished running the new run on ALLActino. I've combined all the pickles and stored the sum at:
+	==> output/output_cliques/ALLActino_RefSeq25_m30s0_cut35gamma80.cliques.pickle
+
+    Then I called 
+	==> cluster_steps3.export_cliques_fasta('output/input_fnas/ALLActino_RefSeq25_m30s0.IGRs','ALLActino_RefSeq25_m30s0_cut35gamma80.cliques.pickle','tmp/motif_dir')
+
+    So now tmp/motif_dir/<size>_<dummy_clique_number> contains the fasta files. 
+    I ignored all cliques with size < 5. (some of them slipped becuz of previous coding negligance)
+
+    To run cmfinder, just use somethin like: cmfinder.pl -combine -def xxx/xxx.fna
+    (dun forget to run merging/rm_dup script later when I'm all done)
+
+
+Feb.19
+
+20. I finished running the newest version of quasi-clique finding on Actinobacteria. The results are good in that precision
+    is generally between 80-90%. However, bad news is some small families (of total # < 20) are elusive. tbox was completely
+    missed.
+
+    One possible reason (in addition to just random luck) is that my construction of G". I ignore all edges between path-2
+    nodes. Maybe I should alter the algorithm s.t. it brings in some of the edges between potential-looking path-2 nodes?
+   
+    Another thing that needs fixing is the exception case where seed_i is swapped out of the clique. This causes
+    an error in my code. Right now....I just manually re-start the function call LOL this has to be fixed.
+
+    I'm running CMFinder on all Actino quasi-cliques (again, stored in tmp/motif_dir in the meantime).
+    I manually picked out large cliques and they're listed in tmp/motif_dir/cmd_extra_large.
+
+    I realize that CMFinder drops dead on input sizes > 70 members. Runs out of memory.
+
+    Current solution is to manually split up the fasta file in to pieces of size 30-40, run it individually, then maybe
+    see if I can merge them?
+
+    I just finished running my first try on 78_2513. I couldn't merge the motifs from the two splits, however when
+    I looked at the structure (using miscCMF.read_motif) it doesn't look like a genuine motif....it looks very 
+    simplified....and one of the split resulted in a huge huge extension of gaps in the middle...ask Zasha for opinion?
+
+
+
+.......OK, CRAP, I forgot about strands!!!!
+       I think I need to ditch all the motif stuff I just did, and re-think about it.
+
+       This isn't as easy as just flipping strands and stuffing the seqs as a fasta.
+       I think I'm gonna use my homenade SW to form a simple MSA test before handing it to CMF.
+       And maybe it's time to revisit some of the MSA papers I read.
+
+
+Apr. 03
+
+21. A lot of things happened LOL I crammed up /xmen4 too much that it stopped working for a while. But now it's back up and Firmicutes is looking great.
+
+Now we're in paper-writing mode!!!!
+
+Here's what I've done for Firmicutes (and probably should do for Actino soon):
+	a) WU-BLAST with M8N7Q16R2W3E2, files were splitted for parallelization,
+           used architecture cluster, results bzipped in
+           ==> output/output_blast_etc/ALLFirm_RefSeq25_m30s0.IGRs.M8N7Q16R2W3E2.WU_splits.tbz
+               (TRY TO NEVER DELETE THIS UNTIL PAPER PUBLISHED AND LONG GONE!!)
+
+        b) BLAST output was parsed (cutoff35), converted to nodes,graphs, stored in MySQL
+           I also used architecture cluster for this, although in the 2nd phase 
+           where I eliminate redundancy, I think I used CS gridxx or xmen
+	   ==> output/output_blast_as_mysql_graph/ALLFirm_RefSeq25_m30s0_cutoff35.xxx
+               (THIS IS EVEN MORE IMPORTANT THAN THE LAST ONE!!)
+
+        c) quasi-clique was run using gridxx servers, xmen, and gattaca.
+	   ==> output/output_cliques/ALLFirm_RefSeq25_m30s0_M8N7Q16R2W3E2_cut35.quasi80_ALL.pickle 
+               (there another ALLFirm_RefSeq25_m30s0_cut35gamma80.cliques.pickle that's an old one)
+
+	d) the cliques were processed into fasta files, fed into CMFinder (on arch cluster).
+           a few big cliques over size 80 failed to get a good motif, so I manually split them
+           up into sizes of 50.
+
+           then the following was done: for each motif dir,
+             - run rm_dup.pl
+             - run comb_motif.pl (even though the CMFinder0.3 does that by default. necessary?)
+             - run rm_dup.pl again
+             - run rm_dup_instance.pl, new file has suffix .dup_rmed
+             - run rank_cmfinder.pl which produces ranking results on motifs
+ 
+           * scripts used were cluster_steps4.py and cluster_steps5.py
+
+ 
+Apr. 06
+
+22. Good progress on writing the paper. Zasha gave me scripts which I've put under ~/lib/perl to colorize & format
+    the predicted motifs. Use the following commands:
+
+	perl ~/lib/perl/StockholmUnblock.pl $stoFileName $tmpUnblock
+	cmzasha --GSC-weighted-consensus $tmpUnblock $tmpFile 3 0.97 0.9 0.75 4 0.97 0.9 0.75 0.5 0.05 
+	perl ~/lib/perl/FancifyStockholm.pl -noWarnParseHitId -forNewMotifsWeb -noURL -highlightCovarying $tmpFile $htmlFileName
+
+Apr.09
+
+23. Downloaded the latest infernal (1.0) to architecture cluster. The new version needs a very specific CM model output,
+    so I took all ncRNA cliques from ALLFirm_RefSeq25_m30s0_M8N7Q16R2W3E2_cut35.quasi80_ALL.total_motif_ranks.pickle,
+    but took ALL motifs from that clique to run the following:
+
+	cmbuild <cmbuilded_output> <motif_filename>
+	cmsearch --fil-T-hmm 10 <cmbuilded_output> /4/lachesis/IGR_storage/ALL_knownRibo_20071102_and_randnonribo.fna
+
+    * the command script is generate_cmd_for_cmscan.py
+    ** I have confirmed that this .fna is indeed the same one used for JBCB's CM scan, yeah~~~!
+
+    Then scp all the .hmmT10.cmscanned files back into tmp/ncRNA_cliques_cmscanned, and run 
+
+	python cluster_steps6.py
+
+    for evaluation. It's the same as JBCB. For each family take the motif that gets the best sensitivity.
+    (NOTE: I do remember the JBCB submission omitted CM scans from certain unpublished families per
+           Zasha's request, remember to ask him about it)
+
+
+Apr.10
+
+24. Per Zasha's request, updated the output.html format (cluster_steps4.py) to include
+    both the alignment and the unblocked stockholm files.
+
+Apr.16
+
+25. I've renamed the directory ./tmp/ to MOTIF_DIR...which makes it finally appropriate.
+    I've finished CMfinder on the Firmicutes new param set: M5N4Q8R6
+    I told Larry that I'm going to try run CM scan on this as well to compare it with M8N7Q16R2,
+     which is the current results I'm using in my paper
+
+    --- Larry says to make the CM scan comparison table make sense, I should try to make
+        all conditions as similar as possible between this one and the one from JBCB....
+
+    --- wrote an email to Camilli to just used deep sequencing on V. cholerae for ncRNA discovery.
+        hopefully he'll give us the data...
+
+    --- Zasha just gave me the "unwelling" part of the Venter data. should run blast on it.
+
+ 
+26. So I don't forget and because I keep adding new steps to the pipeilne, here's what I've done
+    with Firm's sets...
+
+    (on newport)
+    --> first, split the IGR file
+    --> generate condor_run commands for blast on each split
+    --> run cluster_steps2.py (1) create sets_for_nodes and parsed, which can have duplicates
+                              (2) remove the duplicates
+    (on cs.gridxxx)
+    --> run cluster_step2's clique_finding in parallel, each parallel process dumps to a pickle
+    --> merge the pickles into one, here I can evaluate for per-class-per-clique sens. & spec.
+    --> run cluster_step3's preparation for dumping each clique as fasta for CMfinder
+    (on newport)
+    --> run CMfinder on each clique directory
+    (on cs)
+    --> run miscCMF.combine_and_rm_dup to generate commands for rm_dup and comb_motif
+    (on cs.gridxxx)
+    --> run the commands from above
+    --> run cluster_steps4.py for Zizhen's rm_dup_instance.pl and rank_cmfinder.pl 
+
+
+Apr.17
+
+27. Camilli replied. All the data is available on the supp. Silly me :P
+    OK time to run gamma! Upwelling is still running on arch cluster, but as soon
+    as that's time it's gamma's turn.
+
+28. I think the canonical parameter (+5/-4, -8/-6) is worse in terms of CM scan
+    than +8/-7, -16/-2 by manually picking several classes that both folded-BLAST
+    and M8N7Q16R2 did poorly on, ex: SMK, yybP, ykkC. But to be sure, I should
+    run CM scan on all motifs.
+
+Apr.20
+
+29. Upwelling is done blasting & parsing and is at the stage of removing duplicates.
+
+30. http://www/homes/lachesis/camilli.html shows the IGR candidates from Camilli's
+     paper, sorted by closest distance to downstream gene first.
+     
+    The colored rows show that some of their candidates are actually riboswitches.
+
+    I've finished blasting Gamma-Vibrio (which has only 31 species from Zasha's grouplist),
+    so the next thing is to parse & update it, then run quasi-clique!!
+
+31. one important thing about CLIQUE EVALUATION in this paper is that the "count"
+    of class members should not be everything for that class in Firmicutes!! I almost
+    forgot! Because (a) some of them are majorly not in IGR AND (b) Zasha's firm list
+    doesn't include all annotated Firmicutes species, silly me!  After correcting 
+    for this using miscRibo.get_ribo_recoverability in evaluate_clique_pickle.py,
+    the new table 1 looks MUCH MUCH BETTER in terms of sensitivity! yeah!
+
+
+Apr. 21
+
+32. - Finished GammaVibrio's quasi-clique, now I should analyze it.
+    - Upwelling update caused key corruption in MySQL. I'm switching to MySQL 6.0, argh.
+      I tried switching to InnoDB but wth it's soooo slow with the load data infile,
+       so I went back to myisam. New user/pwd for connecting to DB is hugo/chavez.
+      Am updating Upwelling from the very beginning again, *sigh*
+	- lesson from mysql: run mysql_upgrade when upgrading Orz....
+
+
+Apr. 28
+
+33. - OK, Upwelling is FINALLY loaded & updated, and the noredundant files are safely
+      stored in output/output_blast_as_graphs/upwelling_clean.xxx
+
+    - Am almost done with running rm_dup.pl/comb_motif.pl on GammaVibrio's motifs.
+      Manually checking the big ones below:
+
+^[[01;37m../../MOTIF_DIR/GammaVibrio_M8N7Q16R2_motif_dir/vibrio_105_188^[[00m
+^[[01;37m../../MOTIF_DIR/GammaVibrio_M8N7Q16R2_motif_dir/vibrio_171_164^[[00m
+^[[01;37m../../MOTIF_DIR/GammaVibrio_M8N7Q16R2_motif_dir/vibrio_211_58^[[00m
+^[[01;37m../../MOTIF_DIR/GammaVibrio_M8N7Q16R2_motif_dir/vibrio_248_27^[[00m
+^[[01;37m../../MOTIF_DIR/GammaVibrio_M8N7Q16R2_motif_dir/vibrio_53_22^[[00m
+^[[01;37m../../MOTIF_DIR/GammaVibrio_M8N7Q16R2_motif_dir/vibrio_54_79^[[00m
+^[[01;37m../../MOTIF_DIR/GammaVibrio_M8N7Q16R2_motif_dir/vibrio_55_221^[[00m
+^[[01;37m../../MOTIF_DIR/GammaVibrio_M8N7Q16R2_motif_dir/vibrio_58_20^[[00m
+^[[01;37m../../MOTIF_DIR/GammaVibrio_M8N7Q16R2_motif_dir/vibrio_60_151^[[00m
+^[[01;37m../../MOTIF_DIR/GammaVibrio_M8N7Q16R2_motif_dir/vibrio_62_98^[[00m
+^[[01;37m../../MOTIF_DIR/GammaVibrio_M8N7Q16R2_motif_dir/vibrio_63_197^[[00m
+^[[01;37m../../MOTIF_DIR/GammaVibrio_M8N7Q16R2_motif_dir/vibrio_70_137^[[00m
+^[[01;37m../../MOTIF_DIR/GammaVibrio_M8N7Q16R2_motif_dir/vibrio_79_36^[[00m
+^[[01;37m../../MOTIF_DIR/GammaVibrio_M8N7Q16R2_motif_dir/vibrio_85_37^[[00m
+^[[m
+
+	What I do in dealing with these is:
+		1) mkdir manual/, then copy the .fna into it
+        2) split the .fna roughly into equal size, each <= 50 seqs
+           ==> ex: split -l 100 -d xxx.fna xxx.fna_split 
+        3) run cmfinder.pl -def xxx.fna_splityyy
+        4) for each xxx.fna_splityyy, do rm_dup.pl xxx.fna_splityyy "xxx.fna_splityyy.<1>.motif.*"
+		5) comb_motif.pl xxx.fna "xxx.fna_split*.motif.*"
+        6) copy it back to the ../
+
+
+34. I added argument parsing to the __main__ of cluster_steps2.py, so now to initiate
+    clique finding, just do ex:
+
+		==> python -i cluster_steps2.py -p upwelling
+
+	and it'll automatically get the hostname, and the default is set for generating pickle
+	filename, seed degree range, and # of iterations.
+
+	HOWEVER, be careful to check the cluster_steps_settings.py to make sure the DB is right.
+
+35. I learned of another Python standard module: difflib.
+    I used its get_close_matches function for approximate string matching.
+
+
+Apr. 29
+
+36. I'm installing and learning Walrus on my home pc for visualizing graphs....
+    read a paper about measuring "centrality" --- maybe I can used nodes with
+    higher centrality as seeds instead of just randomly picking them?
+	
+37. Walrus is useless now since it must have MSTs. Maybe Ubigraph?
+
+
+May 07.
+
+38. Ended up using Graphviz + ZGRviewer (which is awesome!!).
+    Now I just ran
+		python cluster_steps7.py
+
+    which temporarily dumps .gv graph files to ../../DRAW_DIR/ 
+    and I read it with ZGRviewer's twopi alg.
+    Currently if the clique size > 30, I split it into 3 cases:
+      case 0 --- just show TP-to-TP edges
+      case 1 --- just show TP/FP-to-FP edges
+      case 2 --- just show TP-to-missed edges
+
+    Currently I ignore looking at missed-to-missed edges.
+    Also I append the reading results to ../../DRAW_DIR/REPORT
+
+May 23.
+
+39. harwood progress --- upstream/downstream solo analysis didn't work.
+    I realized Zasha's list of ../../motifs_2007/groups/gamma-pseudomon-25/
+    isn't exactly all Pseudomonas....oops!!!
+
+    so now I've manually removed all non-Pseudomonas and all plasmids of
+    Pseudomonas, leaving ONLY Pseudomonas complete genomic IGRs & .ptt that
+    are listed today in ftp://ftp.ncbi.nih.gov/genomes/Bacteria
+
+    I also discovered that none of the existing Pseudomonas have known GEMM I/II.
+    But this could be because some of them weren't sequenced at the time 
+    of the scan?
+
